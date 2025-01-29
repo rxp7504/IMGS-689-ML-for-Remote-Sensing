@@ -1,5 +1,7 @@
-# EDA - Problem 1
-# see if it worked
+# IMGS-689: Machine Learning for Remote Sensing
+# Homework #1 - Exploratory Data Analysis (EDA)
+# Author: Robert-Jason Pearsall
+
 import numpy as np
 import cmocean as cmo
 import matplotlib.pyplot as plt
