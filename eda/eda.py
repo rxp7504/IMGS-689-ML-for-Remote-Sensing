@@ -1,5 +1,5 @@
 # EDA - Problem 1
-# TRY PUSHING TO GIT
+# see if it worked
 import numpy as np
 import cmocean as cmo
 import matplotlib.pyplot as plt
