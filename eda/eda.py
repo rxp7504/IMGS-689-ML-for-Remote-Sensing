@@ -44,37 +44,66 @@ def plot_band():
     plt.show()
 
 # ----------- Calculate Band Statistics Function----------
-def calculate_band_statistics():
-    data_mean = np.mean(data_new,axis=(0,1))
-    data_std = np.std(data_new,axis=(0,1))
-    data_min = np.min(data_new,axis=(0,1))
-    data_max = np.max(data_new,axis=(0,1))
-    data_q1 = np.percentile(data_new,25,axis=(0,1))
-    data_median = np.median(data_new,axis=(0,1))
-    data_q3 = np.percentile(data_new,75,axis=(0,1))
-    data_skew = skew(data_new,axis=(0,1))
-    data_kurt = kurtosis(data_new,axis=(0,1))
+def calculate_band_statistics(data):
+    # data_new = data.reshape(-1, data.shape[2])
+    # data_new = data.copy()
+
+
+    data_mean = np.mean(data,axis=0)
+    data_std = np.std(data,axis=0)
+    data_min = np.min(data,axis=0)
+    data_max = np.max(data,axis=0)
+    data_q1 = np.percentile(data,25,axis=0)
+    data_median = np.median(data,axis=0)
+    data_q3 = np.percentile(data,75,axis=0)
+    data_skew = skew(data,axis=0)
+    data_kurt = kurtosis(data,axis=0)
+
+    # data_mean = np.zeros(data.shape[1])
+    # data_std = np.zeros(data.shape[1])
+    # data_min = np.zeros(data.shape[1])
+    # data_max = np.zeros(data.shape[1])
+    # data_q1 = np.zeros(data.shape[1])
+    # data_median = np.zeros(data.shape[1])
+    # data_q3 = np.zeros(data.shape[1])
+    # data_skew = np.zeros(data.shape[1])
+    # data_kurt = np.zeros(data.shape[1])
+
+    # for i in range(data.shape[1]):
+    #     band = data[:,i]
+    #     band = band[band>0]
+    #
+    #     data_mean[i] = np.mean(band)
+    #     data_std[i] = np.std(band)
+    #     data_min[i] = np.min(band)
+    #     data_max[i] = np.max(band)
+    #     data_q1[i] = np.percentile(band, 25)
+    #     data_median[i] = np.median(band)
+    #     data_q3[i] = np.percentile(band, 75)
+    #     data_skew[i] = skew(band)
+    #     data_kurt[i] = kurtosis(band)
 
     stats = np.vstack([data_mean,data_std,data_min,data_max,data_q1,data_median,data_q3,data_skew,data_kurt]).T
 
     # Format the matrix to show only 3 significant digits
-    stats_format = np.round(stats, 3)  # Round to 3 decimal places
-    stats_format = stats_format.astype(str)  # Convert to string for table
-    row_labels = ["Band 1", "Band 2", "Band 3","Band 4", "Band 5", "Band 6", "Band 7", "Band 8", "Band 9", "Band 10", "Band 11", "Band 12"]
-    col_labels = ["Mean", "Std", "Min", "Max", "Q1", 'Median', 'Q3', 'Skew', 'Kurt']
+    # stats_format = np.round(stats, 3)  # Round to 3 decimal places
+    # stats_format = stats_format.astype(str)  # Convert to string for table
+    # row_labels = ["Band 1", "Band 2", "Band 3","Band 4", "Band 5", "Band 6", "Band 7", "Band 8", "Band 9", "Band 10", "Band 11", "Band 12"]
+    # col_labels = ["Mean", "Std", "Min", "Max", "Q1", 'Median', 'Q3', 'Skew', 'Kurt']
 
     # Show statistics as a table
-    fig, ax = plt.subplots()
-    ax.axis("tight")
-    ax.axis("off")
+    # fig, ax = plt.subplots()
+    # ax.axis("tight")
+    # ax.axis("off")
 
     # Add the table
-    table = ax.table(cellText=stats_format, loc="center", cellLoc="center",rowLabels=row_labels, colLabels=col_labels)
-    table.auto_set_font_size(False)
-    table.set_fontsize(7)
+    # table = ax.table(cellText=stats_format, loc="center", cellLoc="center",rowLabels=row_labels, colLabels=col_labels)
+    # table = ax.table(cellText=stats_format, loc="center", cellLoc="center")
+    # table.auto_set_font_size(False)
+    # table.set_fontsize(7)
 
-    plt.title("Sentinel-2 Band Statistics", loc='center', fontsize=16, pad=0.1)
-    plt.show()
+    # plt.title("Band Statistics", loc='center', fontsize=16, pad=0.1)
+    # plt.show()
     return stats
 
 # ------------------Standardize Function------------------
@@ -110,29 +139,31 @@ def standardize(data):
 # ----------------Correlation Function--------------------
 def correlation_matrix(data,stats):
     # Shape the data so rows are pixels and cols are bands
-    reshaped_data = data.reshape(-1,data.shape[2])
+    # reshaped_data = data.reshape(-1,data.shape[2])
+    reshaped_data = data.copy()
 
     # Calculate the covariance matrix between each band
-    cor = np.zeros((data.shape[2],data.shape[2]))
-    for i in range(data.shape[2]):
-        for j in range(data.shape[2]):
+    cor = np.zeros((reshaped_data.shape[1],reshaped_data.shape[1]))
+
+    for i in range(reshaped_data.shape[1]):
+        for j in range(reshaped_data.shape[1]):
             cor[i,j] = ((np.sum((reshaped_data[:,i] - stats[i,0]) * (reshaped_data[:,j] - stats[j,0]))) / reshaped_data.shape[0]) / (stats[i,1]*stats[j,1])
 
 
-    # Show statistics as a table
+    # # Show statistics as a table
     cor_format = np.round(cor, 3)  # Round to 3 decimal places
-    #cor_format = cor_format.astype(str)  # Convert to string for table
-    fig, ax = plt.subplots(figsize=(7,5))
-    ax.axis("tight")
-    ax.axis("off")
-    band_labels = ["Band 1", "Band 2", "Band 3","Band 4", "Band 5", "Band 6", "Band 7", "Band 8", "Band 9", "Band 10", "Band 11", "Band 12"]
-    # Add the table
-    table = ax.table(cellText=cor_format, loc="center", cellLoc="center",rowLabels=band_labels, colLabels=band_labels)
-    table.auto_set_font_size(False)
-    table.set_fontsize(7)
-
-    plt.title("Correlation Matrix", loc='center', fontsize=16, pad=0.1)
-    plt.show()
+    # #cor_format = cor_format.astype(str)  # Convert to string for table
+    # fig, ax = plt.subplots(figsize=(7,5))
+    # ax.axis("tight")
+    # ax.axis("off")
+    # band_labels = ["Band 1", "Band 2", "Band 3","Band 4", "Band 5", "Band 6", "Band 7", "Band 8", "Band 9", "Band 10", "Band 11", "Band 12"]
+    # # Add the table
+    # table = ax.table(cellText=cor_format, loc="center", cellLoc="center",rowLabels=band_labels, colLabels=band_labels)
+    # table.auto_set_font_size(False)
+    # table.set_fontsize(7)
+    #
+    # plt.title("Correlation Matrix", loc='center', fontsize=16, pad=0.1)
+    # plt.show()
 
     # Display the array as a heatmap
     fig, ax = plt.subplots()
@@ -142,15 +173,16 @@ def correlation_matrix(data,stats):
     plt.colorbar(cax)
 
     # Add text annotations (the values) on the heatmap
-    for i in range(cor_format.shape[0]):
-        for j in range(cor_format.shape[1]):
-            ax.text(j, i, f'{cor_format[i, j]:.2f}', ha='center', va='center', color='white', fontsize=8)
+    # for i in range(cor_format.shape[0]):
+    #     for j in range(cor_format.shape[1]):
+    #         ax.text(j, i, f'{cor_format[i, j]:.2f}', ha='center', va='center', color='white', fontsize=8)
 
     # Set the tick labels
-    ax.set_xticks(list(range(cor_format.shape[0])))
-    ax.set_yticks(list(range(cor_format.shape[1])))
-    ax.set_xticklabels(list(range(cor_format.shape[0])))
-    ax.set_yticklabels(list(range(cor_format.shape[1])))
+    # ax.set_xticks(list(range(cor_format.shape[0])))
+    # ax.set_yticks(list(range(cor_format.shape[1])))
+    # ax.set_xticklabels(list(range(cor_format.shape[0])))
+    # ax.set_yticklabels(list(range(cor_format.shape[1])))
+
     plt.title("Correlation Matrix")
     plt.xlabel("Bands")
     plt.ylabel("Bands")
