@@ -45,8 +45,10 @@ def plot_band():
 
 # ----------- Calculate Band Statistics Function----------
 def calculate_band_statistics(data):
-    # data_new = data.reshape(-1, data.shape[2])
-    # data_new = data.copy()
+
+    if len(data.shape) > 2:
+        data = data.reshape(-1, data.shape[2])
+
 
 
     data_mean = np.mean(data,axis=0)
@@ -107,7 +109,7 @@ def calculate_band_statistics(data):
     return stats
 
 # ------------------Standardize Function------------------
-def standardize(data):
+def standardize(data,wl):
 
     # Calculate the z score for each pixel
     z_score = np.zeros_like(data)
@@ -137,10 +139,11 @@ def standardize(data):
     plt.show()
 
 # ----------------Correlation Function--------------------
-def correlation_matrix(data,stats):
-    # Shape the data so rows are pixels and cols are bands
-    # reshaped_data = data.reshape(-1,data.shape[2])
-    reshaped_data = data.copy()
+def correlation_matrix(data,wl,stats):
+
+    # reshape data where rows and pixels and cols are bands
+    if len(data.shape) > 2:
+        reshaped_data = data.reshape(-1, data.shape[2])
 
     # Calculate the covariance matrix between each band
     cor = np.zeros((reshaped_data.shape[1],reshaped_data.shape[1]))
@@ -149,43 +152,45 @@ def correlation_matrix(data,stats):
         for j in range(reshaped_data.shape[1]):
             cor[i,j] = ((np.sum((reshaped_data[:,i] - stats[i,0]) * (reshaped_data[:,j] - stats[j,0]))) / reshaped_data.shape[0]) / (stats[i,1]*stats[j,1])
 
-
-    # # Show statistics as a table
-    cor_format = np.round(cor, 3)  # Round to 3 decimal places
-    # #cor_format = cor_format.astype(str)  # Convert to string for table
-    # fig, ax = plt.subplots(figsize=(7,5))
-    # ax.axis("tight")
-    # ax.axis("off")
-    # band_labels = ["Band 1", "Band 2", "Band 3","Band 4", "Band 5", "Band 6", "Band 7", "Band 8", "Band 9", "Band 10", "Band 11", "Band 12"]
-    # # Add the table
-    # table = ax.table(cellText=cor_format, loc="center", cellLoc="center",rowLabels=band_labels, colLabels=band_labels)
-    # table.auto_set_font_size(False)
-    # table.set_fontsize(7)
-    #
-    # plt.title("Correlation Matrix", loc='center', fontsize=16, pad=0.1)
-    # plt.show()
+    # Round to 3 decimal places
+    cor_format = np.round(cor, 3)
 
     # Display the array as a heatmap
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(6,5))
     cax = ax.imshow(cor_format, cmap='coolwarm',vmin=-1, vmax=1)
 
     # Add a colorbar
     plt.colorbar(cax)
 
-    # Add text annotations (the values) on the heatmap
-    # for i in range(cor_format.shape[0]):
-    #     for j in range(cor_format.shape[1]):
-    #         ax.text(j, i, f'{cor_format[i, j]:.2f}', ha='center', va='center', color='white', fontsize=8)
-
     # Set the tick labels
-    # ax.set_xticks(list(range(cor_format.shape[0])))
-    # ax.set_yticks(list(range(cor_format.shape[1])))
-    # ax.set_xticklabels(list(range(cor_format.shape[0])))
-    # ax.set_yticklabels(list(range(cor_format.shape[1])))
+    # tick_spacing = 2
+    # ax.set_xticks(wl[::tick_spacing])
+    # ax.set_yticks(wl[::tick_spacing])
+    # ax.set_xticklabels(wl[::tick_spacing], rotation=45)
+    # ax.set_yticklabels(wl[::tick_spacing], rotation=45)
+
+    # Set evenly spaced tick locations
+    # Dynamically adjust the number of ticks based on the matrix size
+    max_ticks = 15  # Maximum number of ticks to display
+    num_bands = cor_format.shape[0]  # Number of spectral bands
+
+    # Ensure we don't set more ticks than available bands
+    num_ticks = min(max_ticks, num_bands)
+
+    # Generate tick positions dynamically
+    tick_positions = np.linspace(0, num_bands - 1, num=num_ticks, dtype=int)
+    ax.set_xticks(tick_positions)
+    ax.set_yticks(tick_positions)
+
+    # Set labels corresponding to selected tick positions
+    ax.set_xticklabels([f"{wl[i]:.0f}" for i in tick_positions], rotation=45)
+    ax.set_yticklabels([f"{wl[i]:.0f}" for i in tick_positions], rotation=45)
+
+
 
     plt.title("Correlation Matrix")
-    plt.xlabel("Bands")
-    plt.ylabel("Bands")
+    plt.xlabel("Bands [nm]")
+    plt.ylabel("Bands [nm]")
     plt.show()
 
     return cor
