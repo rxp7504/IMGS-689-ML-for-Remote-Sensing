@@ -3,6 +3,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import ylabel
 from numpy.ma.core import zeros_like
+import xgboost as xgb
+
 
 import pca
 import eda.eda as eda
@@ -52,7 +54,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    # make correlation matrix
+    # make correlation matrix TODO: set k to full bands before posting
     k = 10
     cor = eda.correlation_matrix(data[:,:,0:k], wl[0:k],stats)
 
@@ -251,7 +253,46 @@ if __name__ == "__main__":
     auc2 = auc(fpr, tpr)
     print("AUC2: ",auc2)
 
+    # ----------Boosting / Bagging Using XGBoost----------------------
 
+    # grab band in B,G,R,R-edge,NIR
+    xboost_train = np.zeros([x_train.shape[0],len(sub_band_ideal)])
+    xboost_test = np.zeros([x_test.shape[0],len(sub_band_ideal)])
+    j = 0
+    for i in sub_band_ideal:
+        xboost_train[:,j] = x_train[:,np.argmin(i-wl)]
+        xboost_test[:,j] = x_test[:,np.argmin(i-wl)]
+        j += 1
 
+    # standardize input data
+    xboost_train = (xboost_train - np.mean(xboost_train,0)) / np.std(xboost_train,0)
+    xboost_test = (xboost_test - np.mean(xboost_test,0)) / np.std(xboost_test,0)
 
+    # relabel training data for xgboost
+    y_train = y_train - np.min(y_train)
+    y_test = y_test - np.min(y_test)
+
+    dtrain = xgb.DMatrix(xboost_train, label=y_train)
+    dtest = xgb.DMatrix(xboost_test, label=y_test)
+
+    num_classes = 9  # Number of classes
+
+    params = {
+        "objective": "multi:softmax",  # Multi-class classification
+        "num_class": num_classes,
+        "eval_metric": "mlogloss",  # Multi-class log loss
+        "eta": 0.1,  # Learning rate
+        "max_depth": 6,  # Depth of trees
+        "subsample": 0.8,  # Subsample ratio
+        "colsample_bytree": 0.8,  # Feature fraction per tree
+        "seed": 42  # Reproducibility
+    }
+
+    num_rounds = 100  # Number of boosting rounds
+    model = xgb.train(params, dtrain, num_rounds)
+
+    y_pred = model.predict(dtest)  # Returns class labels
+
+    accuracy = sklearn.metrics.accuracy_score(y_test, y_pred)
+    print(f"Test Accuracy: {accuracy:.4f}")
 
