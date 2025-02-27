@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib.pyplot import ylabel
 from numpy.ma.core import zeros_like
 import xgboost as xgb
+from sklearn.utils import resample
+from sklearn.utils.class_weight import compute_class_weight
 
 
 import pca
@@ -80,11 +82,13 @@ if __name__ == "__main__":
 
     # plot histograms of test and training to ensure they are balanced
     fig,ax = plt.subplots(1,2,figsize=(10,5))
-    ax[0].hist(y_train,bins=len(classes))
+    ax[0].hist(y_train,bins=np.arange(1,len(classes) + 2) - 0.5,edgecolor='black',align='mid')
+    ax[0].set_xticks(np.arange(1,len(classes)+1))
     ax[0].set_xlabel('Class')
     ax[0].set_ylabel('Frequency')
     ax[0].set_title('Class Map Histogram (Training Data)')
-    ax[1].hist(y_test,bins=len(classes),color='g')
+    ax[1].hist(y_test,bins=np.arange(1,len(classes) + 2) - 0.5,edgecolor='black',color='g')
+    ax[1].set_xticks(np.arange(1,len(classes)+1))
     ax[1].set_xlabel('Class')
     ax[1].set_ylabel('Frequency')
     ax[1].set_title('Class Map Histogram (Testing Data)')
@@ -97,11 +101,11 @@ if __name__ == "__main__":
 
     # visualize 2 class balance
     fig,ax = plt.subplots(1,2,figsize=(10,5))
-    ax[0].hist(y2_train,bins=len(classes))
+    ax[0].hist(y2_train,edgecolor='black')
     ax[0].set_xlabel('Class')
     ax[0].set_ylabel('Frequency')
     ax[0].set_title('Class Map Histogram (Training Data)')
-    ax[1].hist(y2_test,bins=len(classes),color='g')
+    ax[1].hist(y2_test,edgecolor='black',color='g')
     ax[1].set_xlabel('Class')
     ax[1].set_ylabel('Frequency')
     ax[1].set_title('Class Map Histogram (Testing Data)')
@@ -114,8 +118,8 @@ if __name__ == "__main__":
     x2_test = np.zeros([x_test.shape[0],len(sub_band_ideal)])
     j = 0
     for i in sub_band_ideal:
-        x2_train[:,j] = x_train[:,np.argmin(i-wl)]
-        x2_test[:,j] = x_test[:,np.argmin(i-wl)]
+        x2_train[:,j] = x_train[:,np.argmin(np.abs(i-wl))]
+        x2_test[:,j] = x_test[:,np.argmin(np.abs(i-wl))]
         j += 1
 
     # print sample size for training and test data for 2 class problem
@@ -172,7 +176,8 @@ if __name__ == "__main__":
     # threshold predicted values
     y_predicted = (y_prob > 0.5).astype(int)
 
-    # TODO: add these to the training layer
+    print('--------------------BINARY CLASSIFICATION METRICS---------------------')
+
     # calculate mean accuracy
     mean_accuracy = np.mean(y_predicted == y2_test)
     print("Mean Accuracy: ",mean_accuracy)
@@ -258,10 +263,12 @@ if __name__ == "__main__":
     # grab band in B,G,R,R-edge,NIR
     xboost_train = np.zeros([x_train.shape[0],len(sub_band_ideal)])
     xboost_test = np.zeros([x_test.shape[0],len(sub_band_ideal)])
+    feature_names = np.zeros(len(sub_band_ideal), dtype=object)
     j = 0
     for i in sub_band_ideal:
-        xboost_train[:,j] = x_train[:,np.argmin(i-wl)]
-        xboost_test[:,j] = x_test[:,np.argmin(i-wl)]
+        xboost_train[:,j] = x_train[:,np.argmin(np.abs(i-wl))]
+        xboost_test[:,j] = x_test[:,np.argmin(np.abs(i-wl))]
+        feature_names[j] = f'{np.round(wl[np.argmin(np.abs(i-wl))])} nm'
         j += 1
 
     # standardize input data
@@ -272,6 +279,7 @@ if __name__ == "__main__":
     y_train = y_train - np.min(y_train)
     y_test = y_test - np.min(y_test)
 
+    # dmatrix format for xgboost
     dtrain = xgb.DMatrix(xboost_train, label=y_train)
     dtest = xgb.DMatrix(xboost_test, label=y_test)
 
@@ -289,10 +297,217 @@ if __name__ == "__main__":
     }
 
     num_rounds = 100  # Number of boosting rounds
+
+    # train the model
     model = xgb.train(params, dtrain, num_rounds)
 
-    y_pred = model.predict(dtest)  # Returns class labels
+    # make predictions on test data
+    y_pred = model.predict(dtest).astype(int)  # Returns class labels
 
-    accuracy = sklearn.metrics.accuracy_score(y_test, y_pred)
-    print(f"Test Accuracy: {accuracy:.4f}")
+    # Plot feature importance
+    ax = xgb.plot_importance(model, importance_type="gain")
+    fig = plt.gcf()  # Get current figure
+    fig.set_size_inches(9, 5)  # Set the figure size
+    plt.yticks(ticks=range(len(feature_names)),labels=feature_names, rotation=45)
+    plt.title("Feature Importance")
+    plt.show()
+
+    # scale classes back to original values
+    y_test = y_test + 1
+    y_pred = y_pred + 1
+
+    # plot confusion matrix
+    confusion_matrix = np.zeros((num_classes, num_classes))
+    for i in range(1,num_classes+1):
+        for j in range(1,num_classes+1):
+            confusion_matrix[i-1,j-1] = np.sum((y_test == i) & (y_pred == j))
+
+    # normalize confusion matrix
+    confusion_matrix = confusion_matrix / np.where(confusion_matrix.sum(axis=1)[:, np.newaxis] == 0, 1,confusion_matrix.sum(axis=1)[:, np.newaxis])
+    plt.imshow(confusion_matrix,cmap="Blues")
+    plt.colorbar()
+    plt.title("XGBoost Confusion Matrix (Normalized)")
+    plt.xlabel("Predicted Class")
+    plt.ylabel("True Class")
+    plt.xticks(range(num_classes),labels=range(1,num_classes+1))
+    plt.yticks(range(num_classes),labels=range(1,num_classes+1))
+    # Add text annotations
+    for i in range(num_classes):
+        for j in range(num_classes):
+            plt.text(j, i, f"{confusion_matrix[i, j]:.2f}",
+                     ha="center", va="center", color="black" if confusion_matrix[i, j] < 0.5 else "white")
+
+    plt.show()
+
+    print('--------------------UNBALANCED MULTICLASS METRICS---------------------')
+
+    # calculate mean accuracy
+    mean_accuracy = np.mean(y_pred == y_test)
+    print("Mean Accuracy: ",mean_accuracy)
+
+    # mean per-class accuracy
+    acc = np.zeros(num_classes)
+    for i in range(1,num_classes+1):
+        acc[i-1] = np.sum((y_test == i) & (y_pred == i)) / np.sum(y_test == i) # number of correct predictions divided by total in class
+    mpca = np.mean(acc) # mean accuracy of all classes
+    print("MPCA: ",mpca)
+
+    # precision (how many of predicted positives were correct - about being correct when predicting positive)
+    precision = np.zeros(num_classes)
+    recall = np.zeros(num_classes)
+    for i in range(1,num_classes+1):
+        tp = np.sum((y_test == i) & (y_pred == i)) # true positive
+        tn = np.sum((y_test != i) & (y_pred != i)) # true negative
+        fp = np.sum((y_test != i) & (y_pred == i)) # false positive
+        fn = np.sum((y_test == i) & (y_pred != i)) # false negative
+        precision[i-1] = tp / (tp + fp)
+        recall[i-1] = tp / (tp + fn) # recall (how many actual positives were correctly labeled - about catching all the positives)
+
+    print("Precision: ",precision)
+    print("Recall: ",recall)
+
+    # F1 Score
+    f1 = 2 / ((1 / precision) + (1 / recall))
+    print("F1: ",f1)
+
+    # ---------Balance the Dataset Using Under and Oversampling---------
+    class_counts = np.bincount(classmap_reshaped) # how many pixels in each class
+    class_counts = class_counts[1:] # ignore class 0
+    class_count_avg = int(np.mean(class_counts)) # average of all bin counts
+
+    # initialize as lists (using all original data as input for balancing)
+    X_balanced = []
+    Y_balanced = []
+    for i in range(num_classes):
+        if class_counts[i] > class_count_avg: # if bins are higher than the average
+            # randomly sample pixels of each class to match average count value
+            x_resampled, y_resampled = resample(data_reshaped[classmap_reshaped == i+1,:], classmap_reshaped[classmap_reshaped == i+1], n_samples=class_count_avg, random_state=42)
+        else: # if bins are less than average
+            # randomly sample minority classes with replacement to provide duplicates
+            x_resampled, y_resampled = resample(data_reshaped[classmap_reshaped == i+1,:], classmap_reshaped[classmap_reshaped == i+1], n_samples=class_count_avg, random_state=42,replace=True)
+
+        X_balanced.append(x_resampled)
+        Y_balanced.append(y_resampled)
+
+    # Convert to numpy arrays
+    X_balanced = np.vstack(X_balanced)
+    Y_balanced = np.hstack(Y_balanced)
+
+    # # Plot class distribution
+    # plt.hist(Y_balanced, bins=np.arange(1, num_classes + 2) - 0.5, edgecolor='black', align='mid')
+    # plt.xticks(np.arange(1, num_classes + 1))
+    # plt.xlabel("Class Label")
+    # plt.ylabel("Frequency")
+    # plt.title("Balanced Class Distribution")
+    # plt.show()
+
+    # split balanced data into training and testing partitions
+    x_balanced_train, x_balanced_test, y_balanced_train, y_balanced_test = sklearn.model_selection.train_test_split(X_balanced,Y_balanced,test_size=0.3,train_size=0.7,random_state=42,shuffle=True,stratify=Y_balanced)
+
+    # plot histograms of test and training to ensure they are balanced
+    fig,ax = plt.subplots(1,2,figsize=(10,5))
+    ax[0].hist(y_balanced_train,bins=np.arange(1,len(classes) + 2) - 0.5,edgecolor='black',align='mid')
+    ax[0].set_xticks(np.arange(1,len(classes)+1))
+    ax[0].set_xlabel('Class')
+    ax[0].set_ylabel('Frequency')
+    ax[0].set_title('Balanced Class Map Histogram (Training Data)')
+    ax[1].hist(y_balanced_test,bins=np.arange(1,len(classes) + 2) - 0.5,edgecolor='black',color='g')
+    ax[1].set_xticks(np.arange(1,len(classes)+1))
+    ax[1].set_xlabel('Class')
+    ax[1].set_ylabel('Frequency')
+    ax[1].set_title('Balanced Class Map Histogram (Testing Data)')
+    plt.tight_layout()
+    plt.show()
+
+
+    # ------train a new model using balanced data-------
+
+    # grab band in B,G,R,R-edge,NIR
+    xboost_train = np.zeros([x_balanced_train.shape[0],len(sub_band_ideal)])
+    xboost_test = np.zeros([x_balanced_test.shape[0],len(sub_band_ideal)])
+    j = 0
+    for i in sub_band_ideal:
+        xboost_train[:,j] = x_balanced_train[:,np.argmin(np.abs(i-wl))]
+        xboost_test[:,j] = x_balanced_test[:,np.argmin(np.abs(i-wl))]
+        j += 1
+
+    # standardize input data
+    xboost_train = (xboost_train - np.mean(xboost_train,0)) / np.std(xboost_train,0)
+    xboost_test = (xboost_test - np.mean(xboost_test,0)) / np.std(xboost_test,0)
+
+    # relabel training data for xgboost (start at 0)
+    y_balanced_train = y_balanced_train - np.min(y_balanced_train)
+    y_balanced_test = y_balanced_test - np.min(y_balanced_test)
+
+    # dmatrix format for xgboost
+    dtrain = xgb.DMatrix(xboost_train, label=y_balanced_train)
+    dtest = xgb.DMatrix(xboost_test, label=y_balanced_test)
+
+    # train the model
+    model = xgb.train(params, dtrain, num_rounds)
+
+    # make predictions on test data
+    y_pred = model.predict(dtest).astype(int)  # Returns class labels
+
+    # scale classes back to original values
+    y_balanced_test = y_balanced_test + 1
+    y_pred = y_pred + 1
+
+    # plot confusion matrix
+    confusion_matrix = np.zeros((num_classes, num_classes))
+    for i in range(1,num_classes+1):
+        for j in range(1,num_classes+1):
+            confusion_matrix[i-1,j-1] = np.sum((y_balanced_test == i) & (y_pred == j))
+
+    # normalize confusion matrix
+    confusion_matrix = confusion_matrix / np.where(confusion_matrix.sum(axis=1)[:, np.newaxis] == 0, 1,confusion_matrix.sum(axis=1)[:, np.newaxis])
+    plt.imshow(confusion_matrix,cmap="Blues")
+    plt.colorbar()
+    plt.title("XGBoost Confusion Matrix Using Balanced Data (Normalized)")
+    plt.xlabel("Predicted Class")
+    plt.ylabel("True Class")
+    plt.xticks(range(num_classes),labels=range(1,num_classes+1))
+    plt.yticks(range(num_classes),labels=range(1,num_classes+1))
+    # Add text annotations
+    for i in range(num_classes):
+        for j in range(num_classes):
+            plt.text(j, i, f"{confusion_matrix[i, j]:.2f}",
+                     ha="center", va="center", color="black" if confusion_matrix[i, j] < 0.5 else "white")
+
+    plt.show()
+
+    print('--------------------BALANCED MULTICLASS METRICS---------------------')
+    # calculate mean accuracy
+    mean_accuracy = np.mean(y_pred == y_balanced_test)
+    print("Mean Accuracy: ",mean_accuracy)
+
+    # mean per-class accuracy
+    acc = np.zeros(num_classes)
+    for i in range(1,num_classes+1):
+        acc[i-1] = np.sum((y_balanced_test == i) & (y_pred == i)) / np.sum(y_balanced_test == i) # number of correct predictions divided by total in class
+    mpca = np.mean(acc) # mean accuracy of all classes
+    print("MPCA: ",mpca)
+
+    # precision (how many of predicted positives were correct - about being correct when predicting positive)
+    precision = np.zeros(num_classes)
+    recall = np.zeros(num_classes)
+    for i in range(1,num_classes+1):
+        tp = np.sum((y_balanced_test == i) & (y_pred == i)) # true positive
+        tn = np.sum((y_balanced_test != i) & (y_pred != i)) # true negative
+        fp = np.sum((y_balanced_test != i) & (y_pred == i)) # false positive
+        fn = np.sum((y_balanced_test == i) & (y_pred != i)) # false negative
+        precision[i-1] = tp / (tp + fp)
+        recall[i-1] = tp / (tp + fn) # recall (how many actual positives were correctly labeled - about catching all the positives)
+
+    print("Precision: ",precision)
+    print("Recall: ",recall)
+
+    # F1 Score
+    f1 = 2 / ((1 / precision) + (1 / recall))
+    print("F1: ",f1)
+
+
+
+
+
 
