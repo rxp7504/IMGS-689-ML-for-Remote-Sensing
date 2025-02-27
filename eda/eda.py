@@ -108,6 +108,27 @@ def calculate_band_statistics(data):
     # plt.show()
     return stats
 
+# ----------- Plot Band Statistics Function----------
+def stats_plot(stats,band_names):
+
+    # Format the matrix to show only 3 significant digits
+    stats_format = np.round(stats, 3)  # Round to 3 decimal places
+    stats_format = stats_format.astype(str)  # Convert to string for table
+    col_labels = ["Mean", "Std", "Min", "Max", "Q1", 'Median', 'Q3', 'Skew', 'Kurt']
+
+    # Show statistics as a table
+    fig, ax = plt.subplots()
+    ax.axis("tight")
+    ax.axis("off")
+
+    # Add the table
+    table = ax.table(cellText=stats_format, loc="center", cellLoc="center",rowLabels=band_names, colLabels=col_labels)
+    table.auto_set_font_size(False)
+    table.set_fontsize(7)
+
+    plt.title("Band Statistics", loc='center', fontsize=16, pad=0.1)
+    plt.show()
+
 # ------------------Standardize Function------------------
 def standardize(data,wl):
 
