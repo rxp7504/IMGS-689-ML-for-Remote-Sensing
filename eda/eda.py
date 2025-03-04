@@ -132,28 +132,31 @@ def stats_plot(stats,band_names):
 # ------------------Standardize Function------------------
 def standardize(data,wl):
 
+    if len(data.shape) > 2:
+        data = data.reshape(-1, data.shape[2])
+
     # Calculate the z score for each pixel
     z_score = np.zeros_like(data)
-    for i in range(data.shape[2]):
-        z_score[:,:,i] = (data[:,:,i] - np.mean(data[:,:,i])) / np.std(data[:,:,i])
+    for i in range(data.shape[1]):
+        z_score[:,i] = (data[:,i] - np.mean(data[:,i])) / np.std(data[:,i])
 
     # Plot histogram of original data
-    fig, ax = plt.subplots(3,4,figsize=(12,7))
+    fig, ax = plt.subplots(2,int(data.shape[1]/2),figsize=(12,7))
     axes = ax.flatten()
-    for i in range(data.shape[2]):
-        axes[i].hist(data[:,:,i].flatten(), bins=256)
+    for i in range(data.shape[1]):
+        axes[i].hist(data[:,i], bins=256)
         axes[i].set_title(f"{wl[i]}nm ",fontsize=9)
-        axes[i].set_xlim(0,1)
+        # axes[i].set_xlim(0,1)
     fig.suptitle("Original Data Histograms", fontsize=16)
     plt.tight_layout()
     plt.show()
 
     # Plot histogram of standardized data
-    fig, ax = plt.subplots(3,4,figsize=(12,7))
+    fig, ax = plt.subplots(2,int(data.shape[1]/2),figsize=(12,7))
     axes = ax.flatten()
-    for i in range(data.shape[2]):
+    for i in range(data.shape[1]):
         axes[i].axvspan(-3, 3, color='black', alpha=0.25)
-        axes[i].hist(z_score[:,:,i].flatten(), bins=256,color='orange')
+        axes[i].hist(z_score[:,i].flatten(), bins=256,color='orange')
         axes[i].set_title(f"{wl[i]}nm ",fontsize=9)
     fig.suptitle("Standardized Data Histograms", fontsize=16)
     plt.tight_layout()
@@ -165,6 +168,8 @@ def correlation_matrix(data,wl,stats):
     # reshape data where rows and pixels and cols are bands
     if len(data.shape) > 2:
         reshaped_data = data.reshape(-1, data.shape[2])
+    else:
+        reshaped_data = data
 
     # Calculate the covariance matrix between each band
     cor = np.zeros((reshaped_data.shape[1],reshaped_data.shape[1]))
