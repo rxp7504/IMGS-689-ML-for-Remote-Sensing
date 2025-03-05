@@ -372,6 +372,51 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
+    # -----------------Analyze Bias and Variance Tradeoff Between the 3 Models-----------------------
+
+    # linear regression (ridge)
+    y_pred_lr = ridge.predict(x_test) # predict on test data
+    mae_lr, r2_lr, std_residuals_lr = compute_regression_metrics(y_test, y_pred_lr)
+
+    # PLSR
+    y_pred_plsr = pls.predict(x_test) # predict using test data
+    mae_plsr, r2_plsr, std_residuals_plsr = compute_regression_metrics(y_test, y_pred_plsr) # testing metrics
+
+    # MLP
+    mlp = MLPRegressor(hidden_layer_sizes=layerList[2], activation='relu', max_iter=5000, random_state=42,
+                       learning_rate_init=0.001) # initialize MLP regressor
+    mlp.fit(x_train, y_train)  # train the MLP
+    y_pred_mlp = mlp.predict(x_test) # predict on test set
+    mae_mlp, r2_mlp, std_residuals_mlp = compute_regression_metrics(y_test, y_pred_mlp) # testing metrics
+
+    # Define method names
+    methods = [" Linear Regression (Ridge)", "PLSR", "MLP"]
+
+    # Define MAE and Std of Residuals for each method
+    mae_values = [mae_lr, mae_plsr, mae_mlp]
+    std_residuals_values = [std_residuals_lr, std_residuals_plsr, std_residuals_mlp]
+
+    # Define bar width
+    bar_width = 0.4
+    x = np.arange(len(methods))  # X locations for the groups
+
+    # Create bar plot
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # Plot bars for MAE and Std of Residuals
+    bars1 = ax.bar(x - bar_width / 2, mae_values, bar_width, label="Bias (MAE)", color="blue", alpha=0.7)
+    bars2 = ax.bar(x + bar_width / 2, std_residuals_values, bar_width, label=" Variance (Std Residuals)", color="orange", alpha=0.7)
+
+    # Add labels and title
+    ax.set_xlabel("Model Complexity")
+    ax.set_ylabel("Error Value")
+    ax.set_title("Bias and Variance vs Model Complexity")
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods)
+    ax.legend()
+
+    # Show the plot
+    plt.show()
 
 
 
