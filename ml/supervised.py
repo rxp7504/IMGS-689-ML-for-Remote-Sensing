@@ -1,18 +1,96 @@
 import scipy.io
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 from matplotlib.pyplot import ylabel
 from numpy.ma.core import zeros_like
 import xgboost as xgb
 from sklearn.utils import resample
 from sklearn.utils.class_weight import compute_class_weight
 
-
 import pca
 import eda.eda as eda
 import sklearn
-from sklearn.metrics import roc_curve,auc
+from sklearn.metrics import auc
 
+def binary_classification_metrics(y_true, y_predicted):
+
+    # calculate mean accuracy
+    mean_accuracy = np.mean(y_predicted == y_true)
+    print("Mean Accuracy: ",mean_accuracy)
+
+    # mean per-class accuracy
+    acc_0 = np.sum((y_true == 0) & (y_predicted == 0)) / np.sum(y_true == 0) # number of correct predictions divided by total in class 0
+    acc_1 = np.sum((y_true == 1) & (y_predicted == 1)) / np.sum(y_true == 1) # number of correct predictions divided by total in class 1
+    mpca = 0.5 * (acc_0 + acc_1) # mean of accuracy between both classes
+    print("MPCA: ",mpca)
+
+    # precision (how many of predicted positives were correct - about being correct when predicting positive)
+    tp = np.sum((y_true == 1) & (y_predicted == 1)) # true positive
+    tn = np.sum((y_true == 0) & (y_predicted == 0)) # true negative
+    fp = np.sum((y_true == 0) & (y_predicted == 1)) # false positive
+    fn = np.sum((y_true == 1) & (y_predicted == 0)) # false negative
+    precision = tp / (tp + fp)
+    print("Precision: ",precision)
+
+    # recall (how many actual positives were correctly labeled - about catching all the positives)
+    recall = tp / (tp + fn)
+    print("Recall: ",recall)
+
+    #F1 Score
+    f1 = 2 / ( (1/precision) + (1/recall) )
+    print("F1: ",f1)
+
+    return mean_accuracy,mpca,precision,recall
+
+def roc_curve(y_true, y_prob):
+    # Calculate ROC Curves
+
+    # define thresholds
+    thresholds = np.linspace(0,1,100)
+
+    # initialize lists to store FPR and TPR values
+    tpr_list = []
+    fpr_list = []
+
+    # compute TPR and FPR for each threshold
+    for t in thresholds:
+        # convert probabilities to binary predictions
+        y_pred = (y_prob >= t).astype(int)
+
+        # compute TP, FP, TN, FN
+        TP = np.sum((y_pred == 1) & (y_true == 1))
+        FP = np.sum((y_pred == 1) & (y_true == 0))
+        TN = np.sum((y_pred == 0) & (y_true == 0))
+        FN = np.sum((y_pred == 0) & (y_true == 1))
+
+        # compute TPR and FPR
+        TPR = TP / (TP + FN)
+        FPR = FP / (FP + TN)
+
+        # store values
+        tpr_list.append(TPR)
+        fpr_list.append(FPR)
+
+    # Convert lists to numpy arrays
+    tpr = np.array(tpr_list)
+    fpr = np.array(fpr_list)
+
+    # calculate AUC
+    roc_auc = auc(fpr, tpr)
+    print("AUC: ",roc_auc)
+
+    # plot ROC curve
+    plt.figure(figsize=(6, 6))
+    plt.plot(fpr, tpr)
+    plt.xlabel("False Positive Rate (FPR)")
+    plt.ylabel("True Positive Rate (TPR)")
+    plt.title("ROC Curve")
+    plt.text(0.7,0.9,f'AUC={roc_auc:.9f}',bbox=dict(facecolor='white'))
+    plt.grid()
+    plt.show()
+
+    return roc_auc
 
 if __name__ == "__main__":
 
@@ -34,12 +112,41 @@ if __name__ == "__main__":
     pca.display_rgb(data,wl)
 
     # pseudocolor of class map
-    fig = plt.figure(figsize=(4,6))
-    plt.imshow(classmap,cmap='Set1')
-    plt.colorbar()
-    plt.axis('off')
-    plt.title('Class Map')
-    plt.tight_layout()
+    colors = [
+        "black",  # Class 0
+        "red",  # Class 1
+        "green",  # Class 2
+        "blue",  # Class 3
+        "yellow",  # Class 4
+        "cyan",  # Class 5
+        "magenta",  # Class 6
+        "orange",  # Class 7
+        "purple",  # Class 8
+        "pink"  # Class 9
+    ]
+    class_labels = [
+        "No Data",
+        "Asphalt",
+        "Meadows",
+        "Gravel",
+        "Trees",
+        "Painted metal sheets",
+        "Bare Soil",
+        "Bitumen",
+        "Self-Blocking Bricks",
+        "Shadows"
+    ]
+
+    pavia_cmap = ListedColormap(colors)
+
+    # display image with custom colormap
+    plt.figure(figsize=(9, 6))
+    plt.imshow(classmap, cmap=pavia_cmap, interpolation='nearest')
+    tick_positions = np.linspace(0.5,np.max(classes)-0.5,10)
+    cbar = plt.colorbar(ticks=tick_positions)
+    cbar.set_ticklabels(class_labels)
+    plt.title("Class Map")
+    plt.axis("off")
     plt.show()
 
 # -------------Exploratory Data Analysis--------------------
@@ -52,7 +159,7 @@ if __name__ == "__main__":
     plt.plot(wl,stats[:,1],label='Std')
     plt.title('Band Statistics')
     plt.xlabel('Wavelength (nm)')
-    plt.ylabel('Radiance [W/m²/sr]')
+    plt.ylabel('Digital Count')
     plt.legend()
     plt.show()
 
@@ -61,12 +168,12 @@ if __name__ == "__main__":
     cor = eda.correlation_matrix(data[:,:,0:k], wl[0:k],stats)
 
     # class map histogram
-    # plt.hist(classmap.flatten(),bins=len(classes))
-    # plt.xticks(np.arange(1, len(classes)))
-    # plt.xlabel('Class')
-    # plt.ylabel('Frequency')
-    # plt.title('Class Map Histogram')
-    # plt.show()
+    plt.hist(classmap.flatten(),bins=np.arange(1,len(classes) + 2) - 0.5,edgecolor='black')
+    plt.xticks(np.arange(1,len(classes)+1))
+    plt.xlabel('Class')
+    plt.ylabel('Frequency')
+    plt.title('Class Map Histogram')
+    plt.show()
 
     # ---------- Binary Classification Using Logistic Regression --------------
     # reshape data
@@ -74,7 +181,7 @@ if __name__ == "__main__":
     classmap_reshaped = classmap.flatten()
 
     # remove class 0
-    data_reshaped = data_reshaped[classmap_reshaped>0,:]
+    data_reshaped = data_reshaped[classmap_reshaped>0,:] # select all rows where classmap is greater than 0
     classmap_reshaped = classmap_reshaped[classmap_reshaped>0]
 
     # generate training and testing partitions
@@ -101,13 +208,17 @@ if __name__ == "__main__":
 
     # visualize 2 class balance
     fig,ax = plt.subplots(1,2,figsize=(10,5))
-    ax[0].hist(y2_train,edgecolor='black')
+    count,edges,bars = ax[0].hist(y2_train,edgecolor='black',bins=np.arange(3)-0.5)
+    ax[0].bar_label(bars)
     ax[0].set_xlabel('Class')
     ax[0].set_ylabel('Frequency')
+    ax[0].set_xticks([0,1])
     ax[0].set_title('Class Map Histogram (Training Data)')
-    ax[1].hist(y2_test,edgecolor='black',color='g')
+    count,edges,bars = ax[1].hist(y2_test,edgecolor='black',color='g',bins=np.arange(3)-0.5)
     ax[1].set_xlabel('Class')
     ax[1].set_ylabel('Frequency')
+    ax[1].bar_label(bars)
+    ax[1].set_xticks([0,1])
     ax[1].set_title('Class Map Histogram (Testing Data)')
     plt.tight_layout()
     plt.show()
@@ -124,7 +235,11 @@ if __name__ == "__main__":
 
     # print sample size for training and test data for 2 class problem
     print('2 Class Training Sample Size: ',x2_train.shape[0])
+    print('     Training Class 0: ',np.sum(y2_train==0),f'({np.round(np.sum(y2_train==0) / (np.sum(y2_train==0) + np.sum(y2_train==1)),decimals=2)}%)' )
+    print('     Training Class 1: ',np.sum(y2_train==1),f'({np.round(np.sum(y2_train==1) / (np.sum(y2_train==0) + np.sum(y2_train==1)),decimals=2)}%)' )
     print('2 Class Test Sample Size: ',x2_test.shape[0])
+    print('     Test Class 0: ',np.sum(y2_test==0),f'({np.round(np.sum(y2_test==0) / (np.sum(y2_test==0) + np.sum(y2_test==1)),decimals=2)}%)' )
+    print('     Test Class 1: ',np.sum(y2_test==1),f'({np.round(np.sum(y2_test==1) / (np.sum(y2_test==0) + np.sum(y2_test==1)),decimals=2)}%)' )
 
     # logistic regression function
 
@@ -133,16 +248,16 @@ if __name__ == "__main__":
     x2_test = (x2_test - np.mean(x2_test,0)) / np.std(x2_test,0)
 
     # set learning rate
-    lr = 0.1
+    lr = 0.0001
 
     # set epochs
-    epochs = 500
+    epochs = 5000
 
     # initialize loss
     loss = np.zeros([epochs,1])
 
     # initialize random parameters
-    theta = np.random.random(x2_train.shape[1]) * 0.01
+    theta = np.random.random(x2_train.shape[1])
 
     for i in range(epochs):
 
@@ -150,7 +265,7 @@ if __name__ == "__main__":
         y_prob = 1 / (1 + np.exp(-np.dot(x2_train,theta)))
 
         # update parameters
-        theta = theta + (lr * np.mean((y2_train - y_prob).reshape(-1,1) * x2_train,0))
+        theta = theta + (lr * np.sum((y2_train - y_prob).reshape(-1,1) * x2_train,0))
 
         # loss value
         loss[i] = np.mean((y2_train - y_prob)**2)
@@ -160,103 +275,27 @@ if __name__ == "__main__":
             print(f'Model converged after {i} epochs')
             break
 
-    # plot loss
+    # plot training error
     plt.plot(loss)
-    plt.title('Training Loss')
+    plt.title('Training Error')
     plt.ylabel('MSE')
     plt.xlabel('Epoch')
+    plt.xscale('log')
     plt.xlim([0,i])
     plt.show()
 
-    # TODO: Make this all a cleaner function
-    #-------------- TESTING -----------
-    # sigmoid probability function
-    y_prob = 1 / (1 + np.exp(-np.dot(x2_test, theta)))
-
-    # threshold predicted values
-    y_predicted = (y_prob > 0.5).astype(int)
-
     print('--------------------BINARY CLASSIFICATION METRICS---------------------')
 
-    # calculate mean accuracy
-    mean_accuracy = np.mean(y_predicted == y2_test)
-    print("Mean Accuracy: ",mean_accuracy)
-
-    # mean per-class accuracy
-    acc_0 = np.sum((y2_test == 0) & (y_predicted == 0)) / np.sum(y2_test == 0) # number of correct predictions divided by total in class 0
-    acc_1 = np.sum((y2_test == 1) & (y_predicted == 1)) / np.sum(y2_test == 1) # number of correct predictions divided by total in class 1
-    mpca = 0.5 * (acc_0 + acc_1) # mean of accuracy between both classes
-    print("MPCA: ",mpca)
-
-    # precision (how many of predicted positives were correct - about being correct when predicting positive)
-    tp = np.sum((y2_test == 1) & (y_predicted == 1)) # true positive
-    tn = np.sum((y2_test == 0) & (y_predicted == 0)) # true negative
-    fp = np.sum((y2_test == 0) & (y_predicted == 1)) # false positive
-    fn = np.sum((y2_test == 1) & (y_predicted == 0)) # false negative
-    precision = tp / (tp + fp)
-    print("Precision: ",precision)
-
-    # recall (how many actual positives were correctly labeled - about catching all the positives)
-    recall = tp / (tp + fn)
-    print("Recall: ",recall)
-
-    #F1 Score
-    f1 = 2 / ( (1/precision) + (1/recall) )
-    print("F1: ",f1)
-
-    # ROC Curves TODO: clean this up
-    # tpr = tp / (tp + fn) # true positive rate (recall)
-    # fpr = fp / (fp + tn) # false positive rate
-    y_true = y2_test
-
-    # Define thresholds (sorted unique values)
-    thresholds = np.linspace(0,1,100)
-
-    # Initialize lists to store FPR and TPR values
-    tpr_list = []
-    fpr_list = []
-
-    # Compute TPR and FPR for each threshold
-    for t in thresholds:
-        # Convert probabilities to binary predictions
-        y_pred = (y_prob >= t).astype(int)
-
-        # Compute TP, FP, TN, FN
-        TP = np.sum((y_pred == 1) & (y_true == 1))
-        FP = np.sum((y_pred == 1) & (y_true == 0))
-        TN = np.sum((y_pred == 0) & (y_true == 0))
-        FN = np.sum((y_pred == 0) & (y_true == 1))
-
-        # Compute TPR and FPR
-        TPR = TP / (TP + FN)
-        FPR = FP / (FP + TN)
-
-        # Store values
-        tpr_list.append(TPR)
-        fpr_list.append(FPR)
-
-    # Convert lists to numpy arrays
-    tpr = np.array(tpr_list)
-    fpr = np.array(fpr_list)
-
-    fpr_sklearn, tpr_sklearn, _ = roc_curve(y2_test, y_prob)
-
-    plt.figure(figsize=(6, 6))
-    plt.plot(fpr, tpr, label="Manual ROC")
-    plt.plot(fpr_sklearn, tpr_sklearn, label="sklearn ROC")
-    # plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-    plt.xlabel("False Positive Rate (FPR)")
-    plt.ylabel("True Positive Rate (TPR)")
-    plt.title("ROC Curve Comparison")
-    plt.legend()
-    plt.grid()
-    plt.show()
-
-    # calculate AUC TODO: try this with trapezoid rule
-    auc1 = 1/len(thresholds) * np.sum(tpr)
-    print("AUC: ",auc1)
-    auc2 = auc(fpr, tpr)
-    print("AUC2: ",auc2)
+    print('Training Metrics:')
+    y_prob = 1 / (1 + np.exp(-np.dot(x2_train, theta))) # trained probability function
+    y_predicted = (y_prob > 0.5).astype(int) # threshold predicted values
+    binary_classification_metrics(y2_train, y_predicted) # calculate metrics
+    roc_curve(y2_train, y_prob) # display ROC curve
+    print('\nTesting Metrics:')
+    y_prob = 1 / (1 + np.exp(-np.dot(x2_test, theta))) # trained probability function
+    y_predicted = (y_prob > 0.5).astype(int) # threshold predicted values
+    binary_classification_metrics(y2_test, y_predicted) # calculate metrics
+    roc_curve(y2_test, y_prob) # display ROC curve
 
     # ----------Boosting / Bagging Using XGBoost----------------------
 
