@@ -322,16 +322,12 @@ if __name__ == "__main__":
     dtrain = xgb.DMatrix(xboost_train, label=y_train)
     dtest = xgb.DMatrix(xboost_test, label=y_test)
 
-    num_classes = 9  # Number of classes
+    num_classes = 9  # number of classes
 
     params = {
         "objective": "multi:softmax",  # Multi-class classification
         "num_class": num_classes,
-        "eval_metric": "mlogloss",  # Multi-class log loss
         "eta": 0.1,  # Learning rate
-        "max_depth": 6,  # Depth of trees
-        "subsample": 0.8,  # Subsample ratio
-        "colsample_bytree": 0.8,  # Feature fraction per tree
         "seed": 42  # Reproducibility
     }
 
@@ -345,8 +341,8 @@ if __name__ == "__main__":
 
     # Plot feature importance
     ax = xgb.plot_importance(model, importance_type="gain")
-    fig = plt.gcf()  # Get current figure
-    fig.set_size_inches(9, 5)  # Set the figure size
+    fig = plt.gcf()
+    fig.set_size_inches(9, 5)
     plt.yticks(ticks=range(len(feature_names)),labels=feature_names, rotation=45)
     plt.title("Feature Importance")
     plt.show()
@@ -391,7 +387,6 @@ if __name__ == "__main__":
     mpca = np.mean(acc) # mean accuracy of all classes
     print("MPCA: ",mpca)
 
-    # precision (how many of predicted positives were correct - about being correct when predicting positive)
     precision = np.zeros(num_classes)
     recall = np.zeros(num_classes)
     for i in range(1,num_classes+1):
@@ -399,15 +394,15 @@ if __name__ == "__main__":
         tn = np.sum((y_test != i) & (y_pred != i)) # true negative
         fp = np.sum((y_test != i) & (y_pred == i)) # false positive
         fn = np.sum((y_test == i) & (y_pred != i)) # false negative
-        precision[i-1] = tp / (tp + fp)
+        precision[i-1] = tp / (tp + fp) # precision (how many of predicted positives were correct - about being correct when predicting positive)
         recall[i-1] = tp / (tp + fn) # recall (how many actual positives were correctly labeled - about catching all the positives)
 
-    print("Precision: ",precision)
-    print("Recall: ",recall)
+    print("Precision: ",precision.mean())
+    print("Recall: ",recall.mean())
 
     # F1 Score
     f1 = 2 / ((1 / precision) + (1 / recall))
-    print("F1: ",f1)
+    print("F1: ",f1.mean())
 
     # ---------Balance the Dataset Using Under and Oversampling---------
     class_counts = np.bincount(classmap_reshaped) # how many pixels in each class
@@ -431,14 +426,6 @@ if __name__ == "__main__":
     # Convert to numpy arrays
     X_balanced = np.vstack(X_balanced)
     Y_balanced = np.hstack(Y_balanced)
-
-    # # Plot class distribution
-    # plt.hist(Y_balanced, bins=np.arange(1, num_classes + 2) - 0.5, edgecolor='black', align='mid')
-    # plt.xticks(np.arange(1, num_classes + 1))
-    # plt.xlabel("Class Label")
-    # plt.ylabel("Frequency")
-    # plt.title("Balanced Class Distribution")
-    # plt.show()
 
     # split balanced data into training and testing partitions
     x_balanced_train, x_balanced_test, y_balanced_train, y_balanced_test = sklearn.model_selection.train_test_split(X_balanced,Y_balanced,test_size=0.3,train_size=0.7,random_state=42,shuffle=True,stratify=Y_balanced)
@@ -538,12 +525,12 @@ if __name__ == "__main__":
         precision[i-1] = tp / (tp + fp)
         recall[i-1] = tp / (tp + fn) # recall (how many actual positives were correctly labeled - about catching all the positives)
 
-    print("Precision: ",precision)
-    print("Recall: ",recall)
+    print("Precision: ",precision.mean())
+    print("Recall: ",recall.mean())
 
     # F1 Score
     f1 = 2 / ((1 / precision) + (1 / recall))
-    print("F1: ",f1)
+    print("F1: ",f1.mean())
 
 
 

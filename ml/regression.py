@@ -297,13 +297,12 @@ if __name__ == "__main__":
 
     # define a range of layer sizes each with one neuron
     layerList = [
-        (10,),  # 1 hidden layer, 1 neuron
-        (10, 10),  # 2 hidden layers, 1 neuron each
-        (10, 10, 10),  # 3 hidden layers, 1 neuron each
-        (10, 10, 10, 10),  # 4 hidden layers, 1 neuron each
-        (10, 10, 10, 10, 10)  # 5 hidden layers, 1 neuron each
+        (10,),  # 1 hidden layer, 10 neuron
+        (10, 10),  # 2 hidden layers, 10 neuron each
+        (10, 10, 10),  # 3 hidden layers, 10 neuron each
+        (10, 10, 10, 10),  # 4 hidden layers, 10 neuron each
+        (10, 10, 10, 10, 10)  # 5 hidden layers, 10 neuron each
     ]
-    # numLayers = list(range(len(layerList)))
     r2_train_scores = []
 
     fig1, ax1 = plt.subplots(1, len(layerList), figsize=(20, 5))
@@ -360,8 +359,6 @@ if __name__ == "__main__":
 
     plt.tight_layout()
     plt.show()
-
-
 
     # plot the effect of accuracy vs number of hidden layers
     plt.plot(list(range(1,len(layerList)+1)), r2_train_scores,linestyle="-", marker=".")
